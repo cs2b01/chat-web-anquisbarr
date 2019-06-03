@@ -12,6 +12,37 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
+@app.route('/login') #01/06/2019
+def login():
+    return render_template('login.html')
+
+@app.route('/authenticate', methods = ['POST']) #01/06/2019
+def authenticate():
+    #1 Get data from request
+    username= request.form['username']
+    password = request.form['password']
+
+    #2 Look into database
+    db_session = db.getSession(engine)
+    users = db_session.query(entities.User)
+
+    #3 Comparing users V.1
+    '''
+    
+    for user in users:
+        if user.username == username and user.password == password:
+            return render_template("success.html")
+    return render_template("fail.html")
+    
+    '''
+    #Comparing users V.2
+    db_session= db.getSession(engine)
+    try:
+        user = db_session.query(entities.User).filter(entities.User.username ==username).filter(entities.User.password == password).one()
+        return render_template("success.html")
+    except Exception:
+        return render_template("fail.html")
+
 
 
 @app.route('/static/<content>')
@@ -89,6 +120,50 @@ def delete_user():
     session.delete(user)
     session.commit()
     return 'Deleted User'
+
+#Messages
+
+@app.route('/messages', methods = ['POST'])
+def create_message():
+    c =  json.loads(request.form['values'])
+    message = entities.Message(
+        content=c['content'],
+        user_from_id=c['user_from']['username']['id'],
+        user_to_id=c['user_to']['username']['id']
+    )
+    session = db.getSession(engine)
+    session.add(message)
+    session.commit()
+    return 'Created Message'
+
+@app.route('/messages', methods = ['GET'])
+def get_messages():
+    session = db.getSession(engine)
+    dbResponse = session.query(entities.Message)
+    list = []
+    for message in dbResponse:
+        list.append(message)
+    return Response(json.dumps(list, cls=connector.AlchemyEncoder), mimetype='application/json')
+
+@app.route('/messages/<id>', methods = ['GET'])
+def get_message(id):
+    db_session = db.getSession(engine)
+    message = db_session.query(entities.Message).filter(entities.Message.id == id)
+    for message in message:
+        js = json.dumps(message, cls=connector.AlchemyEncoder)
+        return  Response(js, status=200, mimetype='application/json')
+
+@app.route('/messages', methods= ['PUT'])
+def update_messages():
+    session = db.getSession(engine)
+    id = request.form['key']
+    message = session.query(entities.Message).filter(entities.Message.id == id).first()
+    c = json.loads(request.form['values'])
+    for key in c.keys():
+        setattr(message, key, c[key])
+    session.add(message)
+    session.commit()
+    return 'Updated Message'
 
 
 if __name__ == '__main__':
